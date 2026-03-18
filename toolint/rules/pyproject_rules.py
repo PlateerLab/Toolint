@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any
 
-from toolint.core.models import LintConfig, LintResult, Severity
+from toolint.core.context import ProjectContext
+from toolint.core.models import LintResult, Severity
 from toolint.rules.registry import register
 
 
@@ -43,17 +43,12 @@ def _normalize(name: str) -> str:
     severity=Severity.ERROR,
     layer="pyproject",
 )
-def check_scripts_entry(
-    project_dir: Path, config: LintConfig, pyproject: dict[str, Any]
-) -> list[LintResult]:
+def check_scripts_entry(ctx: ProjectContext) -> list[LintResult]:
     """Check that a CLI entry point is registered."""
-    pkg_dir = project_dir / config.package
-    main_file = pkg_dir / "__main__.py"
-
-    if not main_file.exists():
+    if not ctx.main_file.exists():
         return []  # ATL002 already catches missing __main__.py
 
-    scripts = _get_scripts(pyproject)
+    scripts = _get_scripts(ctx.pyproject)
     if not scripts:
         return [
             LintResult(
@@ -70,16 +65,16 @@ def check_scripts_entry(
 
     # Check that at least one script points to the package
     for _name, entry in scripts.items():
-        if config.package in entry:
+        if ctx.config.package in entry:
             return []
 
     return [
         LintResult(
             rule_id="ATL301",
             severity=Severity.ERROR,
-            message=f"No script entry points to '{config.package}' in pyproject.toml.",
+            message=f"No script entry points to '{ctx.config.package}' in pyproject.toml.",
             file="pyproject.toml",
-            hint=f'Add: my-cli = "{config.package}.__main__:main"',
+            hint=f'Add: my-cli = "{ctx.config.package}.__main__:main"',
         )
     ]
 
@@ -91,24 +86,20 @@ def check_scripts_entry(
     severity=Severity.ERROR,
     layer="pyproject",
 )
-def check_mcp_extras(
-    project_dir: Path, config: LintConfig, pyproject: dict[str, Any]
-) -> list[LintResult]:
+def check_mcp_extras(ctx: ProjectContext) -> list[LintResult]:
     """Check that mcp extras exists if mcp_server.py is present."""
-    pkg_dir = project_dir / config.package
-
     # Check if any MCP server file exists
     mcp_files = [
-        pkg_dir / "mcp_server.py",
-        pkg_dir / "mcp.py",
-        pkg_dir / "server.py",
+        ctx.pkg_dir / "mcp_server.py",
+        ctx.pkg_dir / "mcp.py",
+        ctx.pkg_dir / "server.py",
     ]
     has_mcp = any(f.exists() for f in mcp_files)
 
     if not has_mcp:
         return []
 
-    extras = _get_extras(pyproject)
+    extras = _get_extras(ctx.pyproject)
     if "mcp" not in extras:
         return [
             LintResult(
@@ -130,11 +121,9 @@ def check_mcp_extras(
     severity=Severity.WARNING,
     layer="pyproject",
 )
-def check_all_extras_complete(
-    project_dir: Path, config: LintConfig, pyproject: dict[str, Any]
-) -> list[LintResult]:
+def check_all_extras_complete(ctx: ProjectContext) -> list[LintResult]:
     """Check that 'all' extras includes everything from other groups."""
-    extras = _get_extras(pyproject)
+    extras = _get_extras(ctx.pyproject)
 
     if "all" not in extras:
         return []  # no 'all' group is fine — not required

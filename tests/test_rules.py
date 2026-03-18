@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from toolint.core.config import load_config
+from toolint.core.context import ProjectContext
 from toolint.core.models import LintConfig
 from toolint.rules import dependency, pyproject_rules, structure
 
@@ -48,6 +49,16 @@ def _pyproject(tmp_path: Path) -> dict:
     return pyproject
 
 
+def _ctx(
+    tmp_path: Path, cfg: LintConfig | None = None, pyproject: dict | None = None
+) -> ProjectContext:
+    if cfg is None:
+        cfg = _config()
+    if pyproject is None:
+        pyproject = _pyproject(tmp_path)
+    return ProjectContext(tmp_path, cfg, pyproject)
+
+
 # === ATL001: facade-exists ===
 
 
@@ -65,19 +76,22 @@ class TestATL001:
             },
         )
         cfg = _config(facade_class="MyTool")
-        results = structure.check_facade_exists(tmp_path, cfg, _pyproject(tmp_path))
+        ctx = _ctx(tmp_path, cfg)
+        results = structure.check_facade_exists(ctx)
         assert len(results) == 0
 
     def test_fail_no_package(self, tmp_path: Path):
         cfg = _config(package="nonexistent")
-        results = structure.check_facade_exists(tmp_path, cfg, {})
+        ctx = ProjectContext(tmp_path, cfg, {})
+        results = structure.check_facade_exists(ctx)
         assert len(results) == 1
         assert results[0].rule_id == "ATL001"
 
     def test_fail_configured_class_missing(self, tmp_path: Path):
         _make_project(tmp_path)
         cfg = _config(facade_class="DoesNotExist")
-        results = structure.check_facade_exists(tmp_path, cfg, _pyproject(tmp_path))
+        ctx = _ctx(tmp_path, cfg)
+        results = structure.check_facade_exists(ctx)
         assert len(results) == 1
 
     def test_auto_detect_facade(self, tmp_path: Path):
@@ -93,7 +107,8 @@ class TestATL001:
             },
         )
         cfg = _config()  # no facade_class set
-        results = structure.check_facade_exists(tmp_path, cfg, _pyproject(tmp_path))
+        ctx = _ctx(tmp_path, cfg)
+        results = structure.check_facade_exists(ctx)
         assert len(results) == 0
 
 
@@ -103,15 +118,15 @@ class TestATL001:
 class TestATL002:
     def test_pass(self, tmp_path: Path):
         _make_project(tmp_path)
-        cfg = _config()
-        results = structure.check_main_module(tmp_path, cfg, _pyproject(tmp_path))
+        ctx = _ctx(tmp_path)
+        results = structure.check_main_module(ctx)
         assert len(results) == 0
 
     def test_fail(self, tmp_path: Path):
         _make_project(tmp_path)
         (tmp_path / "my_tool" / "__main__.py").unlink()
-        cfg = _config()
-        results = structure.check_main_module(tmp_path, cfg, _pyproject(tmp_path))
+        ctx = _ctx(tmp_path)
+        results = structure.check_main_module(ctx)
         assert len(results) == 1
         assert results[0].rule_id == "ATL002"
 
@@ -123,14 +138,15 @@ class TestATL003:
     def test_pass(self, tmp_path: Path):
         _make_project(tmp_path)
         cfg = _config(facade_class="MyTool")
-        results = structure.check_init_all(tmp_path, cfg, _pyproject(tmp_path))
+        ctx = _ctx(tmp_path, cfg)
+        results = structure.check_init_all(ctx)
         assert len(results) == 0
 
     def test_fail_no_all(self, tmp_path: Path):
         _make_project(tmp_path)
         (tmp_path / "my_tool" / "__init__.py").write_text('__version__ = "0.1.0"\n')
-        cfg = _config()
-        results = structure.check_init_all(tmp_path, cfg, _pyproject(tmp_path))
+        ctx = _ctx(tmp_path)
+        results = structure.check_init_all(ctx)
         assert len(results) == 1
         assert results[0].rule_id == "ATL003"
 
@@ -140,7 +156,8 @@ class TestATL003:
             '__version__ = "0.1.0"\n__all__ = ["OtherClass"]\n'
         )
         cfg = _config(facade_class="MyTool")
-        results = structure.check_init_all(tmp_path, cfg, _pyproject(tmp_path))
+        ctx = _ctx(tmp_path, cfg)
+        results = structure.check_init_all(ctx)
         assert len(results) == 1
 
 
@@ -150,23 +167,23 @@ class TestATL003:
 class TestATL004:
     def test_pass(self, tmp_path: Path):
         _make_project(tmp_path)
-        cfg = _config()
-        results = structure.check_version_match(tmp_path, cfg, _pyproject(tmp_path))
+        ctx = _ctx(tmp_path)
+        results = structure.check_version_match(ctx)
         assert len(results) == 0
 
     def test_fail_mismatch(self, tmp_path: Path):
         _make_project(tmp_path)
         (tmp_path / "my_tool" / "__init__.py").write_text('__version__ = "0.2.0"\n__all__ = []\n')
-        cfg = _config()
-        results = structure.check_version_match(tmp_path, cfg, _pyproject(tmp_path))
+        ctx = _ctx(tmp_path)
+        results = structure.check_version_match(ctx)
         assert len(results) == 1
         assert "mismatch" in results[0].message.lower()
 
     def test_fail_no_version(self, tmp_path: Path):
         _make_project(tmp_path)
         (tmp_path / "my_tool" / "__init__.py").write_text("__all__ = []\n")
-        cfg = _config()
-        results = structure.check_version_match(tmp_path, cfg, _pyproject(tmp_path))
+        ctx = _ctx(tmp_path)
+        results = structure.check_version_match(ctx)
         assert len(results) == 1
         assert results[0].rule_id == "ATL004"
 
@@ -179,28 +196,29 @@ class TestATL101:
         _make_project(
             tmp_path, files={"core/engine.py": "import json\nimport os\nfrom pathlib import Path\n"}
         )
-        cfg = _config()
-        results = dependency.check_core_stdlib_only(tmp_path, cfg, {})
+        ctx = ProjectContext(tmp_path, _config(), {})
+        results = dependency.check_core_stdlib_only(ctx)
         assert len(results) == 0
 
     def test_fail_third_party(self, tmp_path: Path):
         _make_project(tmp_path, files={"core/engine.py": "import numpy\n"})
-        cfg = _config()
-        results = dependency.check_core_stdlib_only(tmp_path, cfg, {})
+        ctx = ProjectContext(tmp_path, _config(), {})
+        results = dependency.check_core_stdlib_only(ctx)
         assert len(results) == 1
         assert results[0].rule_id == "ATL101"
         assert "numpy" in results[0].message
 
     def test_pass_internal(self, tmp_path: Path):
         _make_project(tmp_path, files={"core/engine.py": "from my_tool.core.models import Foo\n"})
-        cfg = _config()
-        results = dependency.check_core_stdlib_only(tmp_path, cfg, {})
+        ctx = ProjectContext(tmp_path, _config(), {})
+        results = dependency.check_core_stdlib_only(ctx)
         assert len(results) == 0
 
     def test_pass_allowed(self, tmp_path: Path):
         _make_project(tmp_path, files={"core/engine.py": "import numpy\n"})
         cfg = _config(core_allowed_imports=["numpy"])
-        results = dependency.check_core_stdlib_only(tmp_path, cfg, {})
+        ctx = ProjectContext(tmp_path, cfg, {})
+        results = dependency.check_core_stdlib_only(ctx)
         assert len(results) == 0
 
     def test_guarded_still_fails(self, tmp_path: Path):
@@ -211,8 +229,8 @@ class TestATL101:
                 "core/engine.py": "try:\n    import numpy\nexcept ImportError:\n    numpy = None\n"
             },
         )
-        cfg = _config()
-        results = dependency.check_core_stdlib_only(tmp_path, cfg, {})
+        ctx = ProjectContext(tmp_path, _config(), {})
+        results = dependency.check_core_stdlib_only(ctx)
         assert len(results) == 1  # core is strict: no third-party at all
 
 
@@ -232,8 +250,8 @@ class TestATL102:
             '[tool.poetry.dependencies]\npython = "^3.10"\n\n'
             '[tool.poetry.extras]\nml = ["numpy"]\n'
         )
-        cfg = _config()
-        results = dependency.check_optional_import_guard(tmp_path, cfg, _pyproject(tmp_path))
+        ctx = _ctx(tmp_path)
+        results = dependency.check_optional_import_guard(ctx)
         assert len(results) == 0
 
     def test_fail_unguarded(self, tmp_path: Path):
@@ -245,8 +263,8 @@ class TestATL102:
             '[tool.poetry.dependencies]\npython = "^3.10"\n\n'
             '[tool.poetry.extras]\nml = ["numpy"]\n'
         )
-        cfg = _config()
-        results = dependency.check_optional_import_guard(tmp_path, cfg, _pyproject(tmp_path))
+        ctx = _ctx(tmp_path)
+        results = dependency.check_optional_import_guard(ctx)
         assert len(results) == 1
         assert results[0].rule_id == "ATL102"
 
@@ -265,8 +283,8 @@ class TestATL102:
             '[tool.poetry.dependencies]\npython = "^3.10"\n\n'
             '[tool.poetry.extras]\nml = ["numpy"]\n'
         )
-        cfg = _config()
-        results = dependency.check_optional_import_guard(tmp_path, cfg, _pyproject(tmp_path))
+        ctx = _ctx(tmp_path)
+        results = dependency.check_optional_import_guard(ctx)
         assert len(results) == 0
 
 
@@ -286,8 +304,8 @@ class TestATL104:
             '[tool.poetry.dependencies]\npython = "^3.10"\n\n'
             '[tool.poetry.extras]\nml = ["numpy"]\n'
         )
-        cfg = _config()
-        results = dependency.check_extras_registered(tmp_path, cfg, _pyproject(tmp_path))
+        ctx = _ctx(tmp_path)
+        results = dependency.check_extras_registered(ctx)
         assert len(results) == 0
 
     def test_fail_unregistered(self, tmp_path: Path):
@@ -301,8 +319,8 @@ class TestATL104:
             'packages = [{include = "my_tool"}]\n\n'
             '[tool.poetry.dependencies]\npython = "^3.10"\n'
         )
-        cfg = _config()
-        results = dependency.check_extras_registered(tmp_path, cfg, _pyproject(tmp_path))
+        ctx = _ctx(tmp_path)
+        results = dependency.check_extras_registered(ctx)
         assert len(results) == 1
         assert "scipy" in results[0].message
 
@@ -328,8 +346,8 @@ class TestATL103:
             },
         )
         self._pyproject_with_extras(tmp_path)
-        cfg = _config()
-        results = dependency.check_import_guard_hint(tmp_path, cfg, _pyproject(tmp_path))
+        ctx = _ctx(tmp_path)
+        results = dependency.check_import_guard_hint(ctx)
         assert len(results) == 0
 
     def test_skip_graceful_return(self, tmp_path: Path):
@@ -345,8 +363,8 @@ class TestATL103:
             },
         )
         self._pyproject_with_extras(tmp_path)
-        cfg = _config()
-        results = dependency.check_import_guard_hint(tmp_path, cfg, _pyproject(tmp_path))
+        ctx = _ctx(tmp_path)
+        results = dependency.check_import_guard_hint(ctx)
         assert len(results) == 0
 
     def test_skip_graceful_false(self, tmp_path: Path):
@@ -361,8 +379,8 @@ class TestATL103:
             },
         )
         self._pyproject_with_extras(tmp_path)
-        cfg = _config()
-        results = dependency.check_import_guard_hint(tmp_path, cfg, _pyproject(tmp_path))
+        ctx = _ctx(tmp_path)
+        results = dependency.check_import_guard_hint(ctx)
         assert len(results) == 0
 
     def test_require_function_counts_as_hint(self, tmp_path: Path):
@@ -380,8 +398,8 @@ class TestATL103:
             },
         )
         self._pyproject_with_extras(tmp_path)
-        cfg = _config()
-        results = dependency.check_import_guard_hint(tmp_path, cfg, _pyproject(tmp_path))
+        ctx = _ctx(tmp_path)
+        results = dependency.check_import_guard_hint(ctx)
         assert len(results) == 0
 
     def test_fail_raise_without_hint(self, tmp_path: Path):
@@ -397,8 +415,8 @@ class TestATL103:
             },
         )
         self._pyproject_with_extras(tmp_path)
-        cfg = _config()
-        results = dependency.check_import_guard_hint(tmp_path, cfg, _pyproject(tmp_path))
+        ctx = _ctx(tmp_path)
+        results = dependency.check_import_guard_hint(ctx)
         assert len(results) == 1
 
 
@@ -415,8 +433,8 @@ class TestATL104Extra:
             '[tool.poetry.dependencies]\npython = "^3.10"\n\n'
             '[tool.poetry.extras]\nopenapi = ["pyyaml"]\n'
         )
-        cfg = _config()
-        results = dependency.check_extras_registered(tmp_path, cfg, _pyproject(tmp_path))
+        ctx = _ctx(tmp_path)
+        results = dependency.check_extras_registered(ctx)
         assert len(results) == 0
 
     def test_lazy_import_skipped(self, tmp_path: Path):
@@ -438,8 +456,8 @@ class TestATL104Extra:
             'packages = [{include = "my_tool"}]\n\n'
             '[tool.poetry.dependencies]\npython = "^3.10"\n'
         )
-        cfg = _config()
-        results = dependency.check_extras_registered(tmp_path, cfg, _pyproject(tmp_path))
+        ctx = _ctx(tmp_path)
+        results = dependency.check_extras_registered(ctx)
         assert len(results) == 0
 
 
@@ -449,8 +467,8 @@ class TestATL104Extra:
 class TestATL301:
     def test_pass(self, tmp_path: Path):
         _make_project(tmp_path)
-        cfg = _config()
-        results = pyproject_rules.check_scripts_entry(tmp_path, cfg, _pyproject(tmp_path))
+        ctx = _ctx(tmp_path)
+        results = pyproject_rules.check_scripts_entry(ctx)
         assert len(results) == 0
 
     def test_fail_no_scripts(self, tmp_path: Path):
@@ -459,8 +477,8 @@ class TestATL301:
             '[tool.poetry]\nname = "my-tool"\nversion = "0.1.0"\n'
             'packages = [{include = "my_tool"}]\n'
         )
-        cfg = _config()
-        results = pyproject_rules.check_scripts_entry(tmp_path, cfg, _pyproject(tmp_path))
+        ctx = _ctx(tmp_path)
+        results = pyproject_rules.check_scripts_entry(ctx)
         assert len(results) == 1
         assert results[0].rule_id == "ATL301"
 
@@ -471,14 +489,14 @@ class TestATL301:
 class TestATL302:
     def test_pass_no_mcp(self, tmp_path: Path):
         _make_project(tmp_path)
-        cfg = _config()
-        results = pyproject_rules.check_mcp_extras(tmp_path, cfg, _pyproject(tmp_path))
+        ctx = _ctx(tmp_path)
+        results = pyproject_rules.check_mcp_extras(ctx)
         assert len(results) == 0
 
     def test_fail_mcp_no_extras(self, tmp_path: Path):
         _make_project(tmp_path, files={"mcp_server.py": "# MCP server\n"})
-        cfg = _config()
-        results = pyproject_rules.check_mcp_extras(tmp_path, cfg, _pyproject(tmp_path))
+        ctx = _ctx(tmp_path)
+        results = pyproject_rules.check_mcp_extras(ctx)
         assert len(results) == 1
         assert results[0].rule_id == "ATL302"
 
@@ -490,8 +508,8 @@ class TestATL302:
             '[tool.poetry.scripts]\nmy-tool = "my_tool.__main__:main"\n\n'
             '[tool.poetry.extras]\nmcp = ["mcp"]\n'
         )
-        cfg = _config()
-        results = pyproject_rules.check_mcp_extras(tmp_path, cfg, _pyproject(tmp_path))
+        ctx = _ctx(tmp_path)
+        results = pyproject_rules.check_mcp_extras(ctx)
         assert len(results) == 0
 
 
@@ -508,8 +526,8 @@ class TestATL303:
             '[tool.poetry.extras]\nmcp = ["mcp"]\nml = ["numpy"]\n'
             'all = ["mcp", "numpy"]\n'
         )
-        cfg = _config()
-        results = pyproject_rules.check_all_extras_complete(tmp_path, cfg, _pyproject(tmp_path))
+        ctx = _ctx(tmp_path)
+        results = pyproject_rules.check_all_extras_complete(ctx)
         assert len(results) == 0
 
     def test_fail_missing(self, tmp_path: Path):
@@ -521,14 +539,14 @@ class TestATL303:
             '[tool.poetry.extras]\nmcp = ["mcp"]\nml = ["numpy"]\n'
             'all = ["mcp"]\n'  # missing numpy
         )
-        cfg = _config()
-        results = pyproject_rules.check_all_extras_complete(tmp_path, cfg, _pyproject(tmp_path))
+        ctx = _ctx(tmp_path)
+        results = pyproject_rules.check_all_extras_complete(ctx)
         assert len(results) == 1
         assert "numpy" in results[0].message
 
     def test_no_all_group(self, tmp_path: Path):
         """No 'all' extras group is fine — not required."""
         _make_project(tmp_path)
-        cfg = _config()
-        results = pyproject_rules.check_all_extras_complete(tmp_path, cfg, _pyproject(tmp_path))
+        ctx = _ctx(tmp_path)
+        results = pyproject_rules.check_all_extras_complete(ctx)
         assert len(results) == 0

@@ -51,28 +51,10 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def _get_engine() -> LintEngine:
-    """Create a LintEngine with all rules registered."""
+    """Create a LintEngine with all rules auto-loaded."""
     from toolint.engine import LintEngine
 
-    engine = LintEngine()
-
-    # Import rule modules to trigger registration
-    # (rules use @engine.rule decorator or register directly)
-    # For now, rules register themselves into a global registry,
-    # then we load them into the engine.
-    from toolint.rules import registry
-
-    for rule_id, rule_def, checker in registry.get_all():
-        engine.register(
-            rule_id,
-            name=rule_def.name,
-            description=rule_def.description,
-            severity=rule_def.severity,
-            layer=rule_def.layer,
-            checker=checker,
-        )
-
-    return engine
+    return LintEngine()
 
 
 def cmd_check(args: argparse.Namespace) -> int:

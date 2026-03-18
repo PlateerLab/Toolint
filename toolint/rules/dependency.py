@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import ast
-from pathlib import Path
 from typing import Any
 
 from toolint.core.ast_utils import (
@@ -14,7 +13,8 @@ from toolint.core.ast_utils import (
     is_stdlib,
     parse_file,
 )
-from toolint.core.models import LintConfig, LintResult, Severity
+from toolint.core.context import ProjectContext
+from toolint.core.models import LintResult, Severity
 from toolint.rules.registry import register
 
 # Well-known package-name → import-name mappings.
@@ -152,20 +152,15 @@ def _has_require_function(tree: ast.Module, source: str) -> bool:
     severity=Severity.ERROR,
     layer="dependency",
 )
-def check_core_stdlib_only(
-    project_dir: Path, config: LintConfig, pyproject: dict[str, Any]
-) -> list[LintResult]:
+def check_core_stdlib_only(ctx: ProjectContext) -> list[LintResult]:
     """Check that core/ only imports stdlib and internal modules."""
-    pkg_dir = project_dir / config.package
-    core_dir = pkg_dir / config.core_dir
-
-    if not core_dir.is_dir():
+    if not ctx.core_dir.is_dir():
         return []
 
-    allowed = set(config.core_allowed_imports)
+    allowed = set(ctx.config.core_allowed_imports)
     results: list[LintResult] = []
 
-    for py_file in core_dir.rglob("*.py"):
+    for py_file in ctx.core_dir.rglob("*.py"):
         tree = parse_file(py_file)
         if tree is None:
             continue
@@ -174,12 +169,12 @@ def check_core_stdlib_only(
             top = imp["top_module"]
             if is_stdlib(top):
                 continue
-            if is_internal(top, config.package):
+            if is_internal(top, ctx.config.package):
                 continue
             if top in allowed:
                 continue
 
-            rel_path = py_file.relative_to(project_dir)
+            rel_path = ctx.rel_path(py_file)
             hint = (
                 "Move this module outside of core/, or add "
                 f"'{top}' to core_allowed_imports in [tool.toolint]."
@@ -192,7 +187,7 @@ def check_core_stdlib_only(
                         f"Third-party import '{imp['module']}' in core module"
                         " — core/ must be stdlib-only."
                     ),
-                    file=str(rel_path),
+                    file=rel_path,
                     line=imp["line"],
                     col=imp["col"],
                     hint=hint,
@@ -209,21 +204,18 @@ def check_core_stdlib_only(
     severity=Severity.ERROR,
     layer="dependency",
 )
-def check_optional_import_guard(
-    project_dir: Path, config: LintConfig, pyproject: dict[str, Any]
-) -> list[LintResult]:
+def check_optional_import_guard(ctx: ProjectContext) -> list[LintResult]:
     """Check that optional deps are imported inside try/except ImportError."""
-    pkg_dir = project_dir / config.package
-    if not pkg_dir.is_dir():
+    if not ctx.pkg_dir.is_dir():
         return []
 
-    optional_pkgs = _get_all_extras_packages(pyproject)
+    optional_pkgs = _get_all_extras_packages(ctx.pyproject)
     if not optional_pkgs:
         return []
 
     results: list[LintResult] = []
 
-    for py_file in pkg_dir.rglob("*.py"):
+    for py_file in ctx.pkg_dir.rglob("*.py"):
         tree = parse_file(py_file)
         if tree is None:
             continue
@@ -238,7 +230,7 @@ def check_optional_import_guard(
             if is_lazy_import(tree, imp["line"]):
                 continue
 
-            rel_path = py_file.relative_to(project_dir)
+            rel_path = ctx.rel_path(py_file)
             results.append(
                 LintResult(
                     rule_id="ATL102",
@@ -246,7 +238,7 @@ def check_optional_import_guard(
                     message=(
                         f"Optional import '{imp['module']}' missing try/except ImportError guard."
                     ),
-                    file=str(rel_path),
+                    file=rel_path,
                     line=imp["line"],
                     col=imp["col"],
                 )
@@ -262,25 +254,22 @@ def check_optional_import_guard(
     severity=Severity.WARNING,
     layer="dependency",
 )
-def check_import_guard_hint(
-    project_dir: Path, config: LintConfig, pyproject: dict[str, Any]
-) -> list[LintResult]:
+def check_import_guard_hint(ctx: ProjectContext) -> list[LintResult]:
     """Check that import guards include an install hint in the except block.
 
     Skips graceful fallbacks (= None, = False, return, pass) since those
     silently degrade without user interaction.
     """
-    pkg_dir = project_dir / config.package
-    if not pkg_dir.is_dir():
+    if not ctx.pkg_dir.is_dir():
         return []
 
-    optional_pkgs = _get_all_extras_packages(pyproject)
+    optional_pkgs = _get_all_extras_packages(ctx.pyproject)
     if not optional_pkgs:
         return []
 
     results: list[LintResult] = []
 
-    for py_file in pkg_dir.rglob("*.py"):
+    for py_file in ctx.pkg_dir.rglob("*.py"):
         source = py_file.read_text(encoding="utf-8")
         tree = parse_file(py_file)
         if tree is None:
@@ -311,7 +300,7 @@ def check_import_guard_hint(
             )
 
             if not has_hint:
-                rel_path = py_file.relative_to(project_dir)
+                rel_path = ctx.rel_path(py_file)
                 results.append(
                     LintResult(
                         rule_id="ATL103",
@@ -320,9 +309,9 @@ def check_import_guard_hint(
                             f"Import guard for '{imp['module']}' "
                             "raises an error but has no install hint."
                         ),
-                        file=str(rel_path),
+                        file=rel_path,
                         line=imp["line"],
-                        hint=f"Add a message like: pip install {config.package}[<extra>]",
+                        hint=f"Add a message like: pip install {ctx.config.package}[<extra>]",
                     )
                 )
 
@@ -336,25 +325,22 @@ def check_import_guard_hint(
     severity=Severity.ERROR,
     layer="dependency",
 )
-def check_extras_registered(
-    project_dir: Path, config: LintConfig, pyproject: dict[str, Any]
-) -> list[LintResult]:
+def check_extras_registered(ctx: ProjectContext) -> list[LintResult]:
     """Check that try/except guarded imports are in pyproject.toml extras.
 
     Skips lazy imports (inside functions) since those are typically
     user-triggered and may not need extras registration.
     """
-    pkg_dir = project_dir / config.package
-    if not pkg_dir.is_dir():
+    if not ctx.pkg_dir.is_dir():
         return []
 
-    optional_pkgs = _get_all_extras_packages(pyproject)
-    required_pkgs = _get_required_deps(pyproject)
+    optional_pkgs = _get_all_extras_packages(ctx.pyproject)
+    required_pkgs = _get_required_deps(ctx.pyproject)
     known_pkgs = optional_pkgs | required_pkgs
     results: list[LintResult] = []
     seen: set[str] = set()
 
-    for py_file in pkg_dir.rglob("*.py"):
+    for py_file in ctx.pkg_dir.rglob("*.py"):
         tree = parse_file(py_file)
         if tree is None:
             continue
@@ -369,7 +355,7 @@ def check_extras_registered(
             top = imp["top_module"]
             if is_stdlib(top):
                 continue
-            if is_internal(top, config.package):
+            if is_internal(top, ctx.config.package):
                 continue
             if top in known_pkgs:
                 continue
@@ -382,7 +368,7 @@ def check_extras_registered(
                 continue
             seen.add(top)
 
-            rel_path = py_file.relative_to(project_dir)
+            rel_path = ctx.rel_path(py_file)
             results.append(
                 LintResult(
                     rule_id="ATL104",
@@ -391,7 +377,7 @@ def check_extras_registered(
                         f"Optional import '{top}' is guarded but not registered "
                         f"in pyproject.toml extras."
                     ),
-                    file=str(rel_path),
+                    file=rel_path,
                     line=imp["line"],
                     hint="Add it to an extras group in pyproject.toml.",
                 )
@@ -407,21 +393,16 @@ def check_extras_registered(
     severity=Severity.WARNING,
     layer="dependency",
 )
-def check_init_no_eager_optional(
-    project_dir: Path, config: LintConfig, pyproject: dict[str, Any]
-) -> list[LintResult]:
+def check_init_no_eager_optional(ctx: ProjectContext) -> list[LintResult]:
     """Check __init__.py doesn't eagerly import modules that use optional deps."""
-    pkg_dir = project_dir / config.package
-    init_file = pkg_dir / "__init__.py"
-
-    if not init_file.exists():
+    if not ctx.init_file.exists():
         return []
 
-    optional_pkgs = _get_all_extras_packages(pyproject)
+    optional_pkgs = _get_all_extras_packages(ctx.pyproject)
     if not optional_pkgs:
         return []
 
-    tree = parse_file(init_file)
+    tree = parse_file(ctx.init_file)
     if tree is None:
         return []
 
@@ -432,13 +413,13 @@ def check_init_no_eager_optional(
         # Direct import of optional package at top level of __init__.py
         if top in optional_pkgs and not imp["in_try_except"]:
             if not is_lazy_import(tree, imp["line"]):
-                rel_path = init_file.relative_to(project_dir)
+                rel_path = ctx.rel_path(ctx.init_file)
                 results.append(
                     LintResult(
                         rule_id="ATL105",
                         severity=Severity.WARNING,
                         message=f"__init__.py eagerly imports optional dep '{imp['module']}'.",
-                        file=str(rel_path),
+                        file=rel_path,
                         line=imp["line"],
                         hint="Use lazy imports (__getattr__) or move to a submodule.",
                     )

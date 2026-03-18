@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from pathlib import Path
-from typing import Any
 
-from toolint.core.models import LintConfig, LintResult, RuleDefinition, Severity
+from toolint.core.context import ProjectContext
+from toolint.core.models import LintResult, RuleDefinition, Severity
 
-RuleChecker = Callable[[Path, LintConfig, dict[str, Any]], list[LintResult]]
+RuleChecker = Callable[[ProjectContext], list[LintResult]]
 
 _REGISTRY: list[tuple[str, RuleDefinition, RuleChecker]] = []
 
@@ -24,6 +23,9 @@ def register(
     """Decorator to register a rule checker into the global registry."""
 
     def decorator(fn: RuleChecker) -> RuleChecker:
+        if any(r[0] == rule_id for r in _REGISTRY):
+            msg = f"Rule {rule_id} already registered"
+            raise ValueError(msg)
         rule_def = RuleDefinition(
             id=rule_id,
             name=name,
@@ -31,9 +33,6 @@ def register(
             severity=severity,
             layer=layer,
         )
-        if any(r[0] == rule_id for r in _REGISTRY):
-            msg = f"Rule {rule_id} already registered"
-            raise ValueError(msg)
         _REGISTRY.append((rule_id, rule_def, fn))
         return fn
 
@@ -42,7 +41,6 @@ def register(
 
 def get_all() -> list[tuple[str, RuleDefinition, RuleChecker]]:
     """Return all registered rules."""
-    # Trigger import of rule modules so they register themselves
     from toolint.rules import (  # noqa: F401
         dependency,
         layer_separation,

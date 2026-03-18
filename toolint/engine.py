@@ -1,20 +1,32 @@
-"""LintEngine — rule registry, runner, and result collector."""
+"""LintEngine — facade that loads rules from the registry and runs checks."""
 
 from __future__ import annotations
 
 from pathlib import Path
 
 from toolint.core.config import load_config
+from toolint.core.context import ProjectContext
 from toolint.core.models import LintResult, RuleDefinition, Severity
-from toolint.rules.registry import RuleChecker
 
 
 class LintEngine:
-    """Main facade: registers rules, runs checks, collects results."""
+    """Main facade: loads rules, runs checks, collects results."""
 
     def __init__(self) -> None:
         self._rules: dict[str, RuleDefinition] = {}
-        self._checkers: dict[str, RuleChecker] = {}
+        self._checkers: dict[str, object] = {}
+        self._loaded = False
+
+    def _ensure_loaded(self) -> None:
+        """Load all rules from the global registry (once)."""
+        if self._loaded:
+            return
+        from toolint.rules.registry import get_all
+
+        for rule_id, rule_def, checker in get_all():
+            self._rules[rule_id] = rule_def
+            self._checkers[rule_id] = checker
+        self._loaded = True
 
     def register(
         self,
@@ -24,9 +36,10 @@ class LintEngine:
         description: str,
         severity: Severity,
         layer: str,
-        checker: RuleChecker,
+        checker: object,
     ) -> None:
-        """Register a lint rule with its checker function."""
+        """Register a single rule manually (skips auto-loading from registry)."""
+        self._loaded = True  # prevent auto-loading when using manual registration
         self._rules[rule_id] = RuleDefinition(
             id=rule_id,
             name=name,
@@ -38,6 +51,8 @@ class LintEngine:
 
     @property
     def rules(self) -> dict[str, RuleDefinition]:
+        """All registered rules."""
+        self._ensure_loaded()
         return dict(self._rules)
 
     def check(
@@ -47,19 +62,12 @@ class LintEngine:
         select: list[str] | None = None,
         ignore: list[str] | None = None,
     ) -> list[LintResult]:
-        """Run all applicable rules against a project directory.
+        """Run all applicable rules against a project directory."""
+        self._ensure_loaded()
 
-        Parameters
-        ----------
-        project_dir:
-            Path to the project root (where pyproject.toml lives).
-        select:
-            If provided, only run these rule IDs. Overrides config.
-        ignore:
-            If provided, skip these rule IDs. Merged with config.
-        """
         project_path = Path(project_dir).resolve()
         config, pyproject = load_config(project_path)
+        ctx = ProjectContext(project_path, config, pyproject)
 
         # Determine which rules to run
         effective_select = select or config.select
@@ -75,7 +83,7 @@ class LintEngine:
         for rule_id in sorted(rule_ids):
             checker = self._checkers[rule_id]
             try:
-                issues = checker(project_path, config, pyproject)
+                issues = checker(ctx)
                 results.extend(issues)
             except Exception as exc:
                 results.append(
@@ -88,7 +96,8 @@ class LintEngine:
 
         return results
 
-    def check_summary(self, results: list[LintResult]) -> dict[str, int]:
+    @staticmethod
+    def check_summary(results: list[LintResult]) -> dict[str, int]:
         """Return error/warning counts from results."""
         errors = sum(1 for r in results if r.severity == Severity.ERROR)
         warnings = sum(1 for r in results if r.severity == Severity.WARNING)

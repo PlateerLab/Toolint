@@ -3,22 +3,18 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
 
-from toolint.core.models import LintConfig, LintResult, Severity
+from toolint.core.context import ProjectContext
+from toolint.core.models import LintResult, Severity
 from toolint.engine import LintEngine
 from toolint.formatters import format_json, format_text
 
 
-def _dummy_checker_pass(
-    project_dir: Path, config: LintConfig, pyproject: dict[str, Any]
-) -> list[LintResult]:
+def _dummy_checker_pass(ctx: ProjectContext) -> list[LintResult]:
     return []
 
 
-def _dummy_checker_fail(
-    project_dir: Path, config: LintConfig, pyproject: dict[str, Any]
-) -> list[LintResult]:
+def _dummy_checker_fail(ctx: ProjectContext) -> list[LintResult]:
     return [
         LintResult(
             rule_id="ATL999",

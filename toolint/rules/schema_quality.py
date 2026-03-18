@@ -11,7 +11,8 @@ from pathlib import Path
 from typing import Any
 
 from toolint.core.ast_utils import detect_facade_class, find_classes, parse_file
-from toolint.core.models import LintConfig, LintResult, Severity
+from toolint.core.context import ProjectContext
+from toolint.core.models import LintResult, Severity
 from toolint.rules.registry import register
 
 
@@ -110,24 +111,21 @@ def _find_mcp_tool_functions(pkg_dir: Path) -> list[dict[str, Any]]:
     severity=Severity.WARNING,
     layer="schema-quality",
 )
-def check_facade_docstrings(
-    project_dir: Path, config: LintConfig, pyproject: dict[str, Any]
-) -> list[LintResult]:
+def check_facade_docstrings(ctx: ProjectContext) -> list[LintResult]:
     """Check that facade class public methods have docstrings."""
-    pkg_dir = project_dir / config.package
-    if not pkg_dir.is_dir():
+    if not ctx.pkg_dir.is_dir():
         return []
 
-    facade_name = detect_facade_class(pkg_dir, config.facade_class)
+    facade_name = detect_facade_class(ctx.pkg_dir, ctx.config.facade_class)
     if not facade_name:
         return []
 
-    facade_file, facade_info = _find_facade_file_and_class(pkg_dir, facade_name)
+    facade_file, facade_info = _find_facade_file_and_class(ctx.pkg_dir, facade_name)
     if not facade_file or not facade_info:
         return []
 
     results: list[LintResult] = []
-    rel_path = facade_file.relative_to(project_dir)
+    rel_path = ctx.rel_path(facade_file)
 
     for method in facade_info["methods"]:
         if method["name"].startswith("_"):
@@ -138,7 +136,7 @@ def check_facade_docstrings(
                     rule_id="ATL501",
                     severity=Severity.WARNING,
                     message=(f"Facade method '{facade_name}.{method['name']}()' has no docstring."),
-                    file=str(rel_path),
+                    file=rel_path,
                     line=method["line"],
                     hint=(
                         "Add a docstring describing what this method does. "
@@ -157,19 +155,16 @@ def check_facade_docstrings(
     severity=Severity.WARNING,
     layer="schema-quality",
 )
-def check_facade_type_hints(
-    project_dir: Path, config: LintConfig, pyproject: dict[str, Any]
-) -> list[LintResult]:
+def check_facade_type_hints(ctx: ProjectContext) -> list[LintResult]:
     """Check that facade class public methods have type annotations."""
-    pkg_dir = project_dir / config.package
-    if not pkg_dir.is_dir():
+    if not ctx.pkg_dir.is_dir():
         return []
 
-    facade_name = detect_facade_class(pkg_dir, config.facade_class)
+    facade_name = detect_facade_class(ctx.pkg_dir, ctx.config.facade_class)
     if not facade_name:
         return []
 
-    facade_file, facade_info = _find_facade_file_and_class(pkg_dir, facade_name)
+    facade_file, facade_info = _find_facade_file_and_class(ctx.pkg_dir, facade_name)
     if not facade_file or not facade_info:
         return []
 
@@ -179,7 +174,7 @@ def check_facade_type_hints(
         return []
 
     results: list[LintResult] = []
-    rel_path = facade_file.relative_to(project_dir)
+    rel_path = ctx.rel_path(facade_file)
 
     # Find the facade class node in AST
     facade_node: ast.ClassDef | None = None
@@ -206,7 +201,7 @@ def check_facade_type_hints(
                     message=(
                         f"Facade method '{facade_name}.{item.name}()' has no return type hint."
                     ),
-                    file=str(rel_path),
+                    file=rel_path,
                     line=item.lineno,
                     hint="Add a return type annotation (e.g. -> list[ToolSchema]).",
                 )
@@ -225,7 +220,7 @@ def check_facade_type_hints(
                             f"Facade method '{facade_name}.{item.name}()' "
                             f"parameter '{arg.arg}' has no type hint."
                         ),
-                        file=str(rel_path),
+                        file=rel_path,
                         line=item.lineno,
                         hint="Add type annotations for all parameters.",
                     )
@@ -242,22 +237,19 @@ def check_facade_type_hints(
     severity=Severity.ERROR,
     layer="schema-quality",
 )
-def check_mcp_tool_docstrings(
-    project_dir: Path, config: LintConfig, pyproject: dict[str, Any]
-) -> list[LintResult]:
+def check_mcp_tool_docstrings(ctx: ProjectContext) -> list[LintResult]:
     """Check that MCP tool functions have meaningful docstrings."""
-    pkg_dir = project_dir / config.package
-    if not pkg_dir.is_dir():
+    if not ctx.pkg_dir.is_dir():
         return []
 
-    tools = _find_mcp_tool_functions(pkg_dir)
+    tools = _find_mcp_tool_functions(ctx.pkg_dir)
     if not tools:
         return []
 
     results: list[LintResult] = []
 
     for tool in tools:
-        rel_path = tool["file"].relative_to(project_dir)
+        rel_path = ctx.rel_path(tool["file"])
 
         if not tool["has_docstring"]:
             results.append(
@@ -268,7 +260,7 @@ def check_mcp_tool_docstrings(
                         f"MCP tool '{tool['name']}' has no docstring. "
                         "LLMs rely on tool descriptions to select the right tool."
                     ),
-                    file=str(rel_path),
+                    file=rel_path,
                     line=tool["line"],
                     hint="Add a docstring describing what this tool does.",
                 )
@@ -283,7 +275,7 @@ def check_mcp_tool_docstrings(
                         f"({len(tool['docstring'].strip())} chars, min 10). "
                         "LLMs need descriptive tool descriptions."
                     ),
-                    file=str(rel_path),
+                    file=rel_path,
                     line=tool["line"],
                     hint="Write a clear description of what this tool does and when to use it.",
                 )
@@ -299,15 +291,12 @@ def check_mcp_tool_docstrings(
     severity=Severity.WARNING,
     layer="schema-quality",
 )
-def check_mcp_tool_param_docs(
-    project_dir: Path, config: LintConfig, pyproject: dict[str, Any]
-) -> list[LintResult]:
+def check_mcp_tool_param_docs(ctx: ProjectContext) -> list[LintResult]:
     """Check that MCP tool docstrings document their parameters."""
-    pkg_dir = project_dir / config.package
-    if not pkg_dir.is_dir():
+    if not ctx.pkg_dir.is_dir():
         return []
 
-    tools = _find_mcp_tool_functions(pkg_dir)
+    tools = _find_mcp_tool_functions(ctx.pkg_dir)
     if not tools:
         return []
 
@@ -333,7 +322,7 @@ def check_mcp_tool_param_docs(
             # Check if at least param names are mentioned
             undocumented = [a for a in args if a not in docstring]
             if undocumented:
-                rel_path = tool["file"].relative_to(project_dir)
+                rel_path = ctx.rel_path(tool["file"])
                 results.append(
                     LintResult(
                         rule_id="ATL504",
@@ -342,7 +331,7 @@ def check_mcp_tool_param_docs(
                             f"MCP tool '{tool['name']}' docstring doesn't describe "
                             f"parameters: {', '.join(undocumented)}"
                         ),
-                        file=str(rel_path),
+                        file=rel_path,
                         line=tool["line"],
                         hint="Add an Args: section documenting each parameter.",
                     )
