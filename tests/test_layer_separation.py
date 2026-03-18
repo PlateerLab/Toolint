@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from agentlint.core.config import load_config
-from agentlint.core.models import LintConfig
-from agentlint.rules import layer_separation, schema_quality
+from toolint.core.config import load_config
+from toolint.core.models import LintConfig
+from toolint.rules import layer_separation, schema_quality
 
 
 def _make_project(tmp_path: Path, pkg: str = "my_tool", files: dict[str, str] | None = None):

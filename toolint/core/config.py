@@ -1,4 +1,4 @@
-"""Configuration loader — reads from pyproject.toml or .agentlint.toml."""
+"""Configuration loader — reads from pyproject.toml or .toolint.toml."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from agentlint.core.models import LintConfig
+from toolint.core.models import LintConfig
 
 if sys.version_info >= (3, 11):
     import tomllib
@@ -22,8 +22,8 @@ def _find_pyproject(project_dir: Path) -> Path | None:
     return path if path.exists() else None
 
 
-def _find_agentlint_toml(project_dir: Path) -> Path | None:
-    path = project_dir / ".agentlint.toml"
+def _find_toolint_toml(project_dir: Path) -> Path | None:
+    path = project_dir / ".toolint.toml"
     return path if path.exists() else None
 
 
@@ -62,12 +62,12 @@ def load_config(project_dir: Path) -> tuple[LintConfig, dict[str, Any]]:
     if pyproject_path:
         with open(pyproject_path, "rb") as f:
             raw_pyproject = tomllib.load(f)
-        config_data = raw_pyproject.get("tool", {}).get("agentlint", {})
+        config_data = raw_pyproject.get("tool", {}).get("toolint", {})
 
-    # Override with .agentlint.toml if exists
-    agentlint_path = _find_agentlint_toml(project_dir)
-    if agentlint_path:
-        with open(agentlint_path, "rb") as f:
+    # Override with .toolint.toml if exists
+    toolint_path = _find_toolint_toml(project_dir)
+    if toolint_path:
+        with open(toolint_path, "rb") as f:
             config_data = tomllib.load(f)
 
     # Build config

@@ -3,13 +3,13 @@ requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
-name = "agentlint"
+name = "toolint"
 version = "0.1.0"
 description = "Structural linter for MCP-compatible, zero-dependency Python agent tool packages"
 authors = ["PlateerLab"]
 license = "MIT"
 readme = "README.md"
-packages = [{include = "agentlint"}]
+packages = [{include = "toolint"}]
 keywords = [
     "linter", "mcp", "agent", "tool", "architecture",
     "zero-dependency", "structural-lint", "python",
@@ -28,11 +28,11 @@ classifiers = [
 ]
 
 [tool.poetry.urls]
-Homepage = "https://github.com/PlateerLab/Agentlint"
-Repository = "https://github.com/PlateerLab/Agentlint"
+Homepage = "https://github.com/PlateerLab/Toolint"
+Repository = "https://github.com/PlateerLab/Toolint"
 
 [tool.poetry.scripts]
-agentlint = "agentlint.__main__:main"
+toolint = "toolint.__main__:main"
 
 [tool.poetry.dependencies]
 python = "^3.10"

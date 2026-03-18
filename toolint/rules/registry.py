@@ -6,7 +6,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from agentlint.core.models import LintConfig, LintResult, RuleDefinition, Severity
+from toolint.core.models import LintConfig, LintResult, RuleDefinition, Severity
 
 RuleChecker = Callable[[Path, LintConfig, dict[str, Any]], list[LintResult]]
 
@@ -40,7 +40,7 @@ def register(
 def get_all() -> list[tuple[str, RuleDefinition, RuleChecker]]:
     """Return all registered rules."""
     # Trigger import of rule modules so they register themselves
-    from agentlint.rules import (  # noqa: F401
+    from toolint.rules import (  # noqa: F401
         dependency,
         layer_separation,
         pyproject_rules,

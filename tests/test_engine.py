@@ -5,9 +5,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from agentlint.core.models import LintConfig, LintResult, Severity
-from agentlint.engine import LintEngine
-from agentlint.formatters import format_json, format_text
+from toolint.core.models import LintConfig, LintResult, Severity
+from toolint.engine import LintEngine
+from toolint.formatters import format_json, format_text
 
 
 def _dummy_checker_pass(

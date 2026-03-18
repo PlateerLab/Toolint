@@ -5,9 +5,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from agentlint.core.ast_utils import find_assignments, find_classes, parse_file
-from agentlint.core.models import LintConfig, LintResult, Severity
-from agentlint.rules.registry import register
+from toolint.core.ast_utils import find_assignments, find_classes, parse_file
+from toolint.core.models import LintConfig, LintResult, Severity
+from toolint.rules.registry import register
 
 
 @register(
@@ -28,7 +28,7 @@ def check_facade_exists(
                 rule_id="ATL001",
                 severity=Severity.ERROR,
                 message=f"Package directory '{config.package}/' not found.",
-                hint="Set 'package' in [tool.agentlint] or check pyproject.toml.",
+                hint="Set 'package' in [tool.toolint] or check pyproject.toml.",
             )
         ]
 
@@ -46,7 +46,7 @@ def check_facade_exists(
                 message="No public facade class found in package.",
                 hint=(
                     "Create a class that serves as the main public API, "
-                    "or set 'facade_class' in [tool.agentlint]."
+                    "or set 'facade_class' in [tool.toolint]."
                 ),
             )
         ]

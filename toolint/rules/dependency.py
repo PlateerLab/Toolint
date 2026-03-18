@@ -6,9 +6,9 @@ import ast
 from pathlib import Path
 from typing import Any
 
-from agentlint.core.ast_utils import get_imports, is_internal, is_stdlib, parse_file
-from agentlint.core.models import LintConfig, LintResult, Severity
-from agentlint.rules.registry import register
+from toolint.core.ast_utils import get_imports, is_internal, is_stdlib, parse_file
+from toolint.core.models import LintConfig, LintResult, Severity
+from toolint.rules.registry import register
 
 # Well-known package-name → import-name mappings.
 # When the PyPI package name differs from the Python import name.
@@ -249,7 +249,7 @@ def check_core_stdlib_only(
             rel_path = py_file.relative_to(project_dir)
             hint = (
                 "Move this module outside of core/, or add "
-                f"'{top}' to core_allowed_imports in [tool.agentlint]."
+                f"'{top}' to core_allowed_imports in [tool.toolint]."
             )
             results.append(
                 LintResult(

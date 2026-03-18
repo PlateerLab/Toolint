@@ -6,8 +6,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from agentlint.core.config import load_config
-from agentlint.core.models import LintConfig, LintResult, RuleDefinition, Severity
+from toolint.core.config import load_config
+from toolint.core.models import LintConfig, LintResult, RuleDefinition, Severity
 
 # Type for a rule checker function:
 #   (project_dir, config, pyproject_data) -> list[LintResult]

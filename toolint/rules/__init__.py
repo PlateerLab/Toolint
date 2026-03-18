@@ -2,4 +2,4 @@
 
 # Phase 1 rules will be imported here as they are implemented.
 # Example:
-#   from agentlint.rules import structure, dependency, pyproject
+#   from toolint.rules import structure, dependency, pyproject

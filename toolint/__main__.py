@@ -1,16 +1,16 @@
-"""CLI entry point: python -m agentlint."""
+"""CLI entry point: python -m toolint."""
 
 from __future__ import annotations
 
 import argparse
 import sys
 
-from agentlint import __version__
+from toolint import __version__
 
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="agentlint",
+        prog="toolint",
         description="Structural linter for MCP-compatible Python agent tool packages",
     )
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
@@ -48,7 +48,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def _get_engine() -> LintEngine:  # noqa: F821
     """Create a LintEngine with all rules registered."""
-    from agentlint.engine import LintEngine
+    from toolint.engine import LintEngine
 
     engine = LintEngine()
 
@@ -56,7 +56,7 @@ def _get_engine() -> LintEngine:  # noqa: F821
     # (rules use @engine.rule decorator or register directly)
     # For now, rules register themselves into a global registry,
     # then we load them into the engine.
-    from agentlint.rules import registry
+    from toolint.rules import registry
 
     for rule_id, rule_def, checker in registry.get_all():
         engine.register(
@@ -73,7 +73,7 @@ def _get_engine() -> LintEngine:  # noqa: F821
 
 def cmd_check(args: argparse.Namespace) -> int:
     """Run lint checks and return exit code (0=clean, 1=issues found)."""
-    from agentlint.formatters import format_json, format_text
+    from toolint.formatters import format_json, format_text
 
     engine = _get_engine()
 
@@ -88,7 +88,7 @@ def cmd_check(args: argparse.Namespace) -> int:
         print(format_text(results))
 
     # Exit code: 1 if any errors
-    from agentlint.core.models import Severity
+    from toolint.core.models import Severity
 
     has_errors = any(r.severity == Severity.ERROR for r in results)
     return 1 if has_errors else 0

@@ -5,8 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from agentlint.core.models import LintConfig, LintResult, Severity
-from agentlint.rules.registry import register
+from toolint.core.models import LintConfig, LintResult, Severity
+from toolint.rules.registry import register
 
 
 def _get_scripts(pyproject: dict[str, Any]) -> dict[str, str]:

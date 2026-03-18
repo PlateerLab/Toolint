@@ -10,9 +10,9 @@ import ast
 from pathlib import Path
 from typing import Any
 
-from agentlint.core.ast_utils import find_classes, get_imports, parse_file
-from agentlint.core.models import LintConfig, LintResult, Severity
-from agentlint.rules.registry import register
+from toolint.core.ast_utils import find_classes, get_imports, parse_file
+from toolint.core.models import LintConfig, LintResult, Severity
+from toolint.rules.registry import register
 
 
 def _detect_facade_class(pkg_dir: Path, config: LintConfig) -> str | None:

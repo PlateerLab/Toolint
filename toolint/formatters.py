@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 
-from agentlint.core.models import LintResult, Severity
+from toolint.core.models import LintResult, Severity
 
 
 def format_text(results: list[LintResult]) -> str:

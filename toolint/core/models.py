@@ -1,4 +1,4 @@
-"""Core data models for Agentlint — all stdlib, no external deps."""
+"""Core data models for Toolint — all stdlib, no external deps."""
 
 from __future__ import annotations
 
@@ -68,7 +68,7 @@ class LintResult:
 
 @dataclass
 class LintConfig:
-    """Agentlint configuration, loaded from pyproject.toml or .agentlint.toml."""
+    """Toolint configuration, loaded from pyproject.toml or .toolint.toml."""
 
     package: str = ""
     facade_class: str = ""
