@@ -1,0 +1,53 @@
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+name = "agentlint"
+version = "0.1.0"
+description = "Structural linter for MCP-compatible, zero-dependency Python agent tool packages"
+authors = ["PlateerLab"]
+license = "MIT"
+readme = "README.md"
+packages = [{include = "agentlint"}]
+keywords = [
+    "linter", "mcp", "agent", "tool", "architecture",
+    "zero-dependency", "structural-lint", "python",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Quality Assurance",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Typing :: Typed",
+]
+
+[tool.poetry.urls]
+Homepage = "https://github.com/PlateerLab/Agentlint"
+Repository = "https://github.com/PlateerLab/Agentlint"
+
+[tool.poetry.scripts]
+agentlint = "agentlint.__main__:main"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+# Zero dependencies — stdlib only (ast, tomllib, pathlib, json)
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.0"
+ruff = ">=0.11"
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
