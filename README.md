@@ -16,14 +16,16 @@ AI agent tools need to work in multiple contexts at once:
 ```python
 # As a library
 from my_tool import MyTool
-tg = MyTool()
-tg.search("query")
+tool = MyTool()
+tool.search("query")
+```
 
+```bash
 # As a CLI
-$ my-tool search "query"
+my-tool search "query"
 
 # As an MCP server
-$ my-tool serve --source spec.json
+my-tool serve --source spec.json
 ```
 
 Getting this right requires strict architectural discipline. Without it:
@@ -66,7 +68,7 @@ toolint rules
 
 ## Real-World Example
 
-Running `toolint` against [graph-tool-call](https://github.com/SonAIengine/graph-tool-call) (248-tool search engine, 1K+ stars worth of architecture):
+Running `toolint` against [graph-tool-call](https://github.com/SonAIengine/graph-tool-call) (graph-based tool retrieval engine for LLM agents):
 
 ```
 graph_tool_call/core/graph.py:9:4  ATL101 (error)
@@ -181,7 +183,7 @@ Or use `.toolint.toml` as a standalone config file.
   run: uvx toolint check .
 ```
 
-### Pre-commit
+### Pre-commit (coming soon)
 
 ```yaml
 repos:
